@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>火山 Coding Plan 20 个模型实测 + 思考档位验证 · 2026-10-29</title>
+<style>
+:root{--primary:#6E8899;--primary-d:#4A606E;--accent:#C4956E;--accent-d:#A87653;
+--bg:#FAFAF8;--ink:#2E3A40;--muted:#6A737A;--line:#E5E2DC;--ok:#4E7A5B;--bad:#A0522D;
+--card:#FFFFFF;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased}
+.hero{background:linear-gradient(135deg,#5A7484,#6E8899 55%,#8AA0AE);color:#fff;padding:52px 24px 44px}
+.wrap{max-width:860px;margin:0 auto}
+.pill{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.34);
+border-radius:999px;padding:4px 13px;font-size:12.5px;letter-spacing:.04em;margin-bottom:18px}
+.hero h1{margin:0 0 12px;font-size:31px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+.hero p{margin:0;font-size:15px;opacity:.92;max-width:640px;line-height:1.65}
+main{max-width:860px;margin:0 auto;padding:0 24px 72px}
+section{margin-top:44px}
+h2{font-size:21px;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th{text-align:left;font-weight:600;font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;
+color:var(--muted);padding:0 10px 10px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 10px 11px 0;border-bottom:1px solid #F1EFEA;vertical-align:top}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--mono);font-size:13px}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.fast{color:var(--ok);font-weight:600}
+.slow{color:var(--bad)}
+.ok{color:var(--ok);font-weight:600}
+.no{color:var(--bad);font-weight:600}
+.big{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 4px}
+.metric{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 14px;text-align:center}
+.metric .v{font-size:25px;font-weight:700;color:var(--primary-d);letter-spacing:-.02em;line-height:1.2}
+.metric .k{font-size:12px;color:var(--muted);margin-top:5px}
+.ladder{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 4px}
+.step{background:#EEF2F4;border:1px solid #DDE4E8;border-radius:7px;padding:7px 13px;font-size:13.5px;
+font-family:var(--mono);color:var(--primary-d)}
+.step.top{background:var(--accent);border-color:var(--accent-d);color:#fff;font-weight:700}
+.step.ghost{background:transparent;border-style:dashed;color:var(--muted)}
+.arrow{color:var(--muted);font-size:13px}
+.note{background:#F7F4EF;border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:15px 18px;
+font-size:14.5px;margin:16px 0}
+code{font-family:var(--mono);font-size:.9em;background:#EEF2F4;padding:1.5px 6px;border-radius:4px}
+.verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--primary);
+border-radius:0 12px 12px 0;padding:20px 24px;margin:18px 0}
+.verdict h3{margin:0 0 8px;font-size:16.5px}
+footer{max-width:860px;margin:0 auto;padding:26px 24px 60px;color:var(--muted);font-size:12.5px;
+border-top:1px solid var(--line)}
+@media(max-width:640px){
+  .hero{padding:38px 20px 34px}.hero h1{font-size:25px}
+  main{padding:0 18px 56px}.big{grid-template-columns:repeat(2,1fr)}
+  table{font-size:13px}td,th{padding-right:6px}
+  .hide-sm{display:none}
+}
+</style>
+</head><body>
+<div class="hero"><div class="wrap">
+  <span class="pill">实测报告 · 2026-10-29</span>
+  <h1>火山 Coding Plan 模型实测：谁适合当 Hermes 主力</h1>
+  <p>12 个模型跑同一组三项测试（工具调用 / 中文指令遵循 / 写代码），叠加 arena 真实名次，再逐个验证 6 档思考强度的实际行为。</p>
+</div></div>
+
+<main>
+<section>
+  <h2>一句话结论</h2>
+  <p class="sub">14 个 API 调用组 × 6 档强度 = 完整实测后得出的判断</p>
+  <div class="big">
+    <div class="metric"><div class="v">1.2s</div><div class="k">最快（V4.1-Flash）</div></div>
+    <div class="metric"><div class="v">13.6s</div><div class="k">最慢（Seed-Evolving）</div></div>
+    <div class="metric"><div class="v">11×</div><div class="k">速度差距倍数</div></div>
+    <div class="metric"><div class="v">max</div><div class="k">最高有效思考档</div></div>
+  </div>
+  <div class="verdict">
+    <h3>主力继续用 deepseek-v4-1-flash-261017</h3>
+    <p style="margin:0;font-size:14.5px">三关全过、平均 1.2 秒（比最快的豆包还快 3 倍，比最慢的快 11 倍）、arena 总榜 #38 / 编程 #21、1M 上下文、在 Coding Plan 额度里最耐用。能力不弱而速度断层领先，是日常对话与编码的最佳折中。</p>
+  </div>
+</section>
+
+<section>
+  <h2>一、能力 + 速度实测</h2>
+  <p class="sub">三项测试：① 多工具场景下能否选对工具并传对参数 ② 中文指令遵循（严格只输出四个汉字）③ 写 merge_intervals 函数</p>
+  <div class="card"><table>
+    <tr><th>模型</th><th class="num">平均耗时</th><th>工具调用</th><th>中文指令</th><th>写代码</th><th class="hide-sm">备注</th></tr>
+    <tr><td class="mono">deepseek-v4-1-flash-261017</td><td class="num fast">1.2s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">三关全过，速度断层第一</td></tr><tr><td class="mono">deepseek-v4-1-flash-economy-261017</td><td class="num fast">2.4s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">省钱版，速度仍很好</td></tr><tr><td class="mono">doubao-seed-2.0-mini</td><td class="num ">3.8s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">豆包轻量，响应快</td></tr><tr><td class="mono">deepseek-v4-pro-ga-260813</td><td class="num ">5.1s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">Pro 档，质量更稳</td></tr><tr><td class="mono">minimax-m3</td><td class="num ">5.2s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">Hermes 历史有流式兼容问题</td></tr><tr><td class="mono">glm-5.3</td><td class="num ">6.2s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">arena 总榜 #28</td></tr><tr><td class="mono">ark-code-latest</td><td class="num ">7.3s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">自动路由，等于开盲盒</td></tr><tr><td class="mono">kimi-k3.1-pro</td><td class="num ">8.1s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">只接受 temperature=1，Hermes 默认 0 会 400</td></tr><tr><td class="mono">glm-5-3-flash-260828</td><td class="num ">8.1s</td><td class="ok">PASS</td><td class="no">EMPTY</td><td class="ok">PASS</td><td class="hide-sm">中文指令输出空内容</td></tr><tr><td class="mono">kimi-k3</td><td class="num ">8.4s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">arena 总榜 #18，编程约 #10</td></tr><tr><td class="mono">doubao-seed-2-1-pro-260915</td><td class="num slow">13.2s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">慢，能力对齐 Pro</td></tr><tr><td class="mono">doubao-seed-evolving</td><td class="num slow">13.6s</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="ok">PASS</td><td class="hide-sm">最慢，火山自家 agent 优化</td></tr>
+  </table></div>
+  <div class="note"><strong>怎么读这张表</strong>：工具调用是 Hermes 主力模型的命门——选错工具或参数传错，整条 agent 链就崩了。这批模型全部通过，所以真正的分水岭是<strong>速度和稳定性</strong>。</div>
+</section>
+
+<section>
+  <h2>二、Arena 真实名次（416 个模型总榜）</h2>
+  <p class="sub">公开竞技场的人类盲测排名，用来交叉验证"能力"这一维</p>
+  <div class="card"><table>
+    <tr><th>模型</th><th class="num">总榜</th><th class="num">分数</th><th class="num">编程榜</th></tr>
+    <tr style="font-weight:700;color:#4A606E"><td>Kimi K3 (Max)</td><td class="num">#18</td><td class="num">1487</td><td class="num">~#10</td></tr><tr style="font-weight:700;color:#4A606E"><td>GLM-5.3 (Max)</td><td class="num">#28</td><td class="num">1479</td><td class="num">#17</td></tr><tr style="font-weight:700;color:#4A606E"><td>GLM-5.2 (Max)</td><td class="num">#32</td><td class="num">1476</td><td class="num">#22</td></tr><tr style="font-weight:700;color:#4A606E"><td>DeepSeek-V4.1-Flash</td><td class="num">#38</td><td class="num">1475</td><td class="num">#21</td></tr><tr style="font-weight:700;color:#4A606E"><td>GLM-5.3-Flash</td><td class="num">#41</td><td class="num">1474</td><td class="num">#22</td></tr><tr><td>GLM-5.1</td><td class="num">#54</td><td class="num">1465</td><td class="num">#40</td></tr><tr><td>DeepSeek-V4-Pro (High)</td><td class="num">#56</td><td class="num">1465</td><td class="num">#34</td></tr><tr><td>Kimi K2.6</td><td class="num">#59</td><td class="num">1461</td><td class="num">#48</td></tr><tr><td>MiniMax-M3</td><td class="num">#96</td><td class="num">1441</td><td class="num">#79</td></tr><tr><td>DeepSeek-V4-Flash</td><td class="num">#104</td><td class="num">1436</td><td class="num">#89</td></tr>
+  </table></div>
+  <div class="note"><strong>关键发现</strong>：能力最强的 Kimi K3（#18）和最实用的 DeepSeek-V4.1-Flash（#38）只差 20 个名次、12 分，但<strong>速度差 7 倍</strong>。日常场景下这 12 分换不回你等它的时间。</div>
+</section>
+
+<section>
+  <h2>三、思考档位：Max 才是真顶级，不是 High</h2>
+  <p class="sub">Hermes 源码里的档位阶梯，以及各档在火山端点上的真实表现</p>
+  <div class="ladder">
+    <span class="step">minimal</span><span class="arrow">→</span>
+    <span class="step">low</span><span class="arrow">→</span>
+    <span class="step">medium</span><span class="arrow">→</span>
+    <span class="step">high</span><span class="arrow">→</span>
+    <span class="step">xhigh</span><span class="arrow">→</span>
+    <span class="step top">max</span>
+    <span class="step ghost">ultra（Hermes 内部档，无 provider 接受）</span>
+  </div>
+  <div class="note"><strong>源码原话</strong>：<code>ultra</code> 是 Hermes 内部档（Codex 产品档），"没有任何 wire 接受它，所有 provider 的声明集都止于 <code>max</code>"。所以发给火山的最高档就是 <code>max</code>，<code>ultra</code> 会被自动降级。</div>
+  
+<div class="card">
+  <h3 style="margin:0 0 12px;font-size:16px">DeepSeek-V4.1-Flash（当前主力）</h3>
+  <table>
+    <tr><th>档位</th><th class="num">耗时</th><th class="num">推理字符</th><th class="num">答案字符</th><th>答案状态</th></tr>
+    <tr><td class="mono">low</td><td class="num ">13.2s</td><td class="num">9,237</td><td class="num">1,377</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">medium</td><td class="num ">15.0s</td><td class="num">13,398</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">high</td><td class="num ">16.1s</td><td class="num">12,714</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">xhigh</td><td class="num ">13.5s</td><td class="num">12,631</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">max</td><td class="num ">14.6s</td><td class="num">13,780</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">ultra</td><td class="num ">14.9s</td><td class="num">13,217</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr>
+  </table>
+</div>
+<div class="card">
+  <h3 style="margin:0 0 12px;font-size:16px">GLM-5.3</h3>
+  <table>
+    <tr><th>档位</th><th class="num">耗时</th><th class="num">推理字符</th><th class="num">答案字符</th><th>答案状态</th></tr>
+    <tr><td class="mono">low</td><td class="num ">7.0s</td><td class="num">17</td><td class="num">656</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">medium</td><td class="num ">7.3s</td><td class="num">17</td><td class="num">665</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">high</td><td class="num ">14.2s</td><td class="num">1,275</td><td class="num">847</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">xhigh</td><td class="num slow">49.0s</td><td class="num">11,574</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">max</td><td class="num slow">48.8s</td><td class="num">11,685</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">ultra</td><td class="num no">400</td><td colspan="3" class="no">服务端拒绝该参数值（InvalidParameter）</td></tr>
+  </table>
+</div>
+<div class="card">
+  <h3 style="margin:0 0 12px;font-size:16px">ark-code-latest（自动路由）</h3>
+  <table>
+    <tr><th>档位</th><th class="num">耗时</th><th class="num">推理字符</th><th class="num">答案字符</th><th>答案状态</th></tr>
+    <tr><td class="mono">low</td><td class="num ">27.4s</td><td class="num">3,354</td><td class="num">506</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">medium</td><td class="num ">19.7s</td><td class="num">2,651</td><td class="num">523</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">high</td><td class="num ">18.8s</td><td class="num">1,444</td><td class="num">607</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">xhigh</td><td class="num slow">52.9s</td><td class="num">11,712</td><td class="num">0</td><td><span class="no">被推理吃空</span></td></tr><tr><td class="mono">max</td><td class="num slow">40.6s</td><td class="num">6,646</td><td class="num">661</td><td><span class="ok">完整</span></td></tr><tr><td class="mono">ultra</td><td class="num no">400</td><td colspan="3" class="no">服务端拒绝该参数值（InvalidParameter）</td></tr>
+  </table>
+</div>
+  <div class="note"><strong>怎么读</strong>：<code>max</code> 确实让模型思考得更久（GLM-5.3 的推理字符从 high 的 1,275 涨到 11,685，约 9 倍），代价是耗时从 14 秒变 49 秒。而推理越长，越容易把输出预算吃光，<strong>导致答案被截断甚至为空</strong>——上表 deepseek 在 medium 以上全部出现这个问题。</div>
+</section>
+
+<section>
+  <h2>四、实际怎么用</h2>
+  <div class="card">
+    <table>
+      <tr><th>场景</th><th>推荐配置</th></tr>
+      <tr><td>日常对话、查资料、跑工具</td><td><code>deepseek-v4-1-flash-261017</code> + <code>high</code></td></tr>
+      <tr><td>写代码、复杂排查</td><td><code>glm-5.3</code>（编程 #17）或 <code>kimi-k3</code>（编程 ~#10）</td></tr>
+      <tr><td>硬骨头：架构设计、深度推理</td><td>任一模型临时提到 <code>max</code>，接受 2~3.5 倍耗时</td></tr>
+      <tr><td>超大重构、长链 agent</td><td><code>doubao-seed-evolving</code>（13.6s，慢但 agent 调得深）</td></tr>
+      <tr><td class="no">千万不要</td><td class="no"><code>kimi-k3.1-pro</code> 设为默认（只接受 temperature=1，会 400 干挂）</td></tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>五、方法论说明</h2>
+  <div class="card" style="font-size:14.5px">
+    <p style="margin-top:0"><strong>环境</strong>：火山方舟 Coding Plan 端点 <code>/api/coding/v3</code>，chat/completions 协议，temperature=0（kimi-k3.1-pro 例外，需 1）。</p>
+    <p><strong>测法</strong>：每模型 3 个独立请求，取平均耗时；工具调用测试提供 3 个 function（read_file / restart_service / send_email），只问需要读文件的场景，考察是否选对工具与参数。思考档位测试用同一道 12 球称重题，记录推理字符数、答案字符数与是否被截断。</p>
+    <p style="margin-bottom:0"><strong>局限</strong>：单次采样，不是统计显著性实验；耗时受网络与端侧排队影响，绝对值有波动，但模型之间的相对差距（1.2s vs 13.6s）远大于波动幅度。</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  生成于 2026-10-29 · 数据源：火山方舟 Coding Plan 实跑 + arena.ai 公开榜单（416 模型总榜）<br>
+  安巢评 · 不收机构一分钱，只帮你把东西看明白
+</footer>
+</body></html>
